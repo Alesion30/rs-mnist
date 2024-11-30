@@ -1,15 +1,25 @@
 use image::{imageops::FilterType, ImageReader};
-use ndarray::{Array, ArrayD, Ix4};
-use ort::{session::{builder::GraphOptimizationLevel, Session}, value::Value};
+use ndarray::{Array, Axis, Ix4};
+use ort::{
+    session::{builder::GraphOptimizationLevel, Session},
+    tensor::ArrayExtensions,
+    value::Value,
+};
 use std::{collections::HashMap, error::Error, io::Cursor};
 
 static MNIST_MODEL: &[u8] = include_bytes!("../models/mnist-12.onnx");
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let model = create_session(MNIST_MODEL)?;
-    let img_array = preprocess_image(include_bytes!("../images/test5.jpg"))?;
+    let result = run_inference(MNIST_MODEL, include_bytes!("../images/test5.jpg"))?;
+    println!("Tensor values: {:?}", result);
 
-    run_inference(&model, img_array)?;
+    let max_index = result
+        .iter()
+        .enumerate()
+        .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+        .map(|(index, _)| index)
+        .unwrap();
+    println!("Predicted digit: {}", max_index);
 
     Ok(())
 }
@@ -48,31 +58,22 @@ fn preprocess_image(img_data: &[u8]) -> Result<Array<f32, Ix4>, Box<dyn Error>> 
 /**
  * 推論を実行する
  */
-fn run_inference(model: &Session, img_array: Array<f32, Ix4>) -> Result<(), Box<dyn Error>> {
+fn run_inference(model_data: &[u8], img_array: &[u8]) -> Result<Vec<f32>, Box<dyn Error>> {
+    let model = create_session(model_data)?;
+    let img_array = preprocess_image(img_array)?;
+
     let input_tensor: Value<ort::value::TensorValueType<f32>> = Value::from_array(img_array)?;
     let mut inputs = HashMap::new();
     inputs.insert("Input3", input_tensor);
 
     let outputs = model.run(inputs)?;
 
-    // 結果を表示
-    for (name, tensor) in outputs.iter() {
-        println!("Output {}: {:?}", name, tensor);
+    let probabilities: Vec<f32> = outputs[0]
+        .try_extract_tensor()?
+        .softmax(Axis(1))
+        .iter()
+        .copied()
+        .collect();
 
-        let array_view: ndarray::ArrayViewD<f32> = tensor.try_extract_tensor()?;
-        let array: ArrayD<f32> = array_view.to_owned();
-        println!("Tensor values: {:?}", array);
-
-        // 最も高い値を持つインデックスを見つける
-        let max_index = array
-            .iter()
-            .enumerate()
-            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
-            .map(|(index, _)| index)
-            .unwrap();
-
-        println!("Predicted digit: {}", max_index);
-    }
-
-    Ok(())
+    Ok(probabilities)
 }
