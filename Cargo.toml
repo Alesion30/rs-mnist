@@ -1,6 +1,6 @@
 [package]
 edition = "2021"
-name = "rs-mnist"
+name = "rs_mnist"
 version = "0.1.0"
 
 [lib]
@@ -8,16 +8,18 @@ crate-type = ["cdylib"]
 
 [dependencies]
 console_error_panic_hook = "0.1.7"
-image = {version = "0.25.5", default-features = false, features = ["jpeg"]}
+image = {version = "=0.25.5", default-features = false, features = ["jpeg"]}
+jpeg-decoder = "0.1.17"
 ndarray = "0.15"
 ort = "=2.0.0-rc.4"
 ort-sys = "=2.0.0-rc.4"
+serde-wasm-bindgen = "0.6.5"
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
 tracing-subscriber-wasm = "0.1.0"
 wasm-bindgen = "0.2.97"
 wasm-bindgen-test = "0.3.47"
-web-sys = "0.3.74"
+web-sys = {version = "0.3.74", features = ["console"]}
 
 [features]
 load-dynamic = ["ort/load-dynamic"]
